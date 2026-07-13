@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0 -p 8790",
+    "build": "next build --webpack",
+    "start": "next start -H 0.0.0.0 -p 8790"
+  },
+  "dependencies": {
+    "lucide-react": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  }
+}
