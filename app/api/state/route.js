@@ -190,17 +190,41 @@ export async function PUT(request) {
     }
   }
 
-  const visit = normalizeVisit(body, body.id);
-  const error = validationError(visit);
-  if (error) return NextResponse.json({ error }, { status: 422 });
+  if (!body.id) {
+    return NextResponse.json({ error: "ไม่พบนัดนี้" }, { status: 404 });
+  }
 
   try {
+    // CRM/Apps Script can send only changed fields. Preserve the existing
+    // required appointment fields instead of rejecting partial updates.
+    const existingRows = await supabaseFetch(
+      "visits",
+      `?id=eq.${encodeURIComponent(body.id)}&select=*`
+    );
+    if (!existingRows.length) {
+      return NextResponse.json({ error: "ไม่พบนัดนี้" }, { status: 404 });
+    }
+
+    const existing = apiVisit(existingRows[0]);
+    const merged = {
+      ...existing,
+      ...body,
+      id: body.id,
+      date: body.date || existing.date,
+      start: body.start || body.start_time || existing.start,
+      end: body.end || body.end_time || existing.end,
+      client: body.client || existing.client,
+      owner: body.owner || body.owner_id || existing.owner,
+    };
+    const visit = normalizeVisit(merged, body.id);
+    const error = validationError(visit);
+    if (error) return NextResponse.json({ error }, { status: 422 });
+
     const rows = await supabaseFetch("visits", `?id=eq.${encodeURIComponent(body.id)}&select=*`, {
       method: "PATCH",
       headers: { prefer: "return=representation" },
       body: JSON.stringify(visit),
     });
-    if (!rows.length) return NextResponse.json({ error: "ไม่พบนัดนี้" }, { status: 404 });
     return NextResponse.json(apiVisit(rows[0]));
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
