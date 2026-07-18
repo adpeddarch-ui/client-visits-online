@@ -139,6 +139,15 @@ export async function POST(request) {
   if (error) return NextResponse.json({ error }, { status: 422 });
 
   try {
+    const duplicateQuery =
+      `?date=eq.${encodeURIComponent(visit.date)}` +
+      `&start_time=eq.${encodeURIComponent(visit.start_time)}` +
+      `&client=eq.${encodeURIComponent(visit.client)}&select=*`;
+    const existingRows = await supabaseFetch("visits", duplicateQuery);
+    if (existingRows.length) {
+      return NextResponse.json(apiVisit(existingRows[0]));
+    }
+
     const rows = await supabaseFetch("visits", "?select=*", {
       method: "POST",
       headers: { prefer: "return=representation" },
