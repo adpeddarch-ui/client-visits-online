@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Copy, MapPin, Plus, Search, Trash2, Users, X } from "lucide-react";
+import { CalendarDays, CheckCircle2, Copy, MapPin, Plus, Search, Trash2, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 const statusClasses = {
@@ -77,7 +77,7 @@ export default function Page() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const activeVisits = visits.filter((visit) => visit.status !== "ยกเลิก");
+  const activeVisits = visits.filter((visit) => !["เสร็จแล้ว", "ยกเลิก"].includes(visit.status));
   const summary = useMemo(() => {
     const today = toDate(todayIso());
     const weekEnd = new Date(today);
@@ -95,6 +95,7 @@ export default function Page() {
   const visibleVisits = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return visits
+      .filter((visit) => !["เสร็จแล้ว", "ยกเลิก"].includes(visit.status))
       .filter((visit) => {
         const memberMatch =
           ownerFilter === "ทั้งหมด" || visit.owner === ownerFilter || visit.participants.includes(ownerFilter);
@@ -120,6 +121,11 @@ export default function Page() {
     }
     setEditing(null);
     await loadState();
+  }
+
+  async function completeVisit(visit) {
+    if (!window.confirm(`ยืนยันว่าเข้าพบ “${visit.client}” เสร็จแล้วใช่ไหม`)) return;
+    await saveVisit({ ...visit, status: "เสร็จแล้ว" });
   }
 
   async function deleteVisit(id) {
@@ -203,7 +209,7 @@ export default function Page() {
       </nav>
 
       <section className="status-row" aria-label="สถานะ">
-        {["ทั้งหมด", "วางแผน", "รอยืนยัน", "ยืนยันแล้ว", "เสร็จแล้ว"].map((status) => (
+        {["ทั้งหมด", "วางแผน", "รอยืนยัน", "ยืนยันแล้ว", "เลื่อน"].map((status) => (
           <button
             className={`chip ${statusFilter === status ? "active" : ""}`}
             key={status}
@@ -227,40 +233,46 @@ export default function Page() {
                   {new Intl.DateTimeFormat("th-TH", { weekday: "short", day: "numeric", month: "short" }).format(toDate(visit.date))}
                 </h2>
               ) : null}
-              <button className="visit-card" type="button" onClick={() => setEditing(visit)}>
-                <div className="date-tile">
-                  <strong>{new Intl.DateTimeFormat("th-TH", { day: "numeric" }).format(toDate(visit.date))}</strong>
-                  <span>{new Intl.DateTimeFormat("th-TH", { month: "short" }).format(toDate(visit.date))}</span>
-                </div>
-                <div className="visit-body">
-                  <div className="visit-head">
-                    <div>
-                      <h3>{visit.client}</h3>
-                      <p>
-                        {visit.start}-{visit.end} · {visit.type}
-                      </p>
+              <div className="visit-card" style={{ display: "block", padding: 0, overflow: "hidden" }}>
+                <button className="visit-card-main" style={{ display: "grid", gridTemplateColumns: "60px 1fr", gap: 12, width: "100%", padding: 12, border: 0, background: "transparent", color: "inherit", textAlign: "left" }} type="button" onClick={() => setEditing(visit)}>
+                  <div className="date-tile">
+                    <strong>{new Intl.DateTimeFormat("th-TH", { day: "numeric" }).format(toDate(visit.date))}</strong>
+                    <span>{new Intl.DateTimeFormat("th-TH", { month: "short" }).format(toDate(visit.date))}</span>
+                  </div>
+                  <div className="visit-body">
+                    <div className="visit-head">
+                      <div>
+                        <h3>{visit.client}</h3>
+                        <p>
+                          {visit.start}-{visit.end} · {visit.type}
+                        </p>
+                      </div>
+                      <span className={`status-badge ${statusClasses[visit.status] || ""}`}>{visit.status}</span>
                     </div>
-                    <span className={`status-badge ${statusClasses[visit.status] || ""}`}>{visit.status}</span>
-                  </div>
-                  <div className="visit-meta">
-                    <span>
-                      <Users size={14} />
-                      {memberName(visit.owner)}
-                    </span>
-                    {visit.location ? (
+                    <div className="visit-meta">
                       <span>
-                        <MapPin size={14} />
-                        {visit.location}
+                        <Users size={14} />
+                        {memberName(visit.owner)}
                       </span>
-                    ) : null}
-                    <span>
-                      <CalendarDays size={14} />
-                      เตือน {visit.reminder >= 1440 ? "1 วัน" : `${visit.reminder} นาที`}
-                    </span>
+                      {visit.location ? (
+                        <span>
+                          <MapPin size={14} />
+                          {visit.location}
+                        </span>
+                      ) : null}
+                      <span>
+                        <CalendarDays size={14} />
+                        เตือน {visit.reminder >= 1440 ? "1 วัน" : `${visit.reminder} นาที`}
+                      </span>
+                    </div>
+                    <div className="visit-notes">{visit.notes || visit.contact}</div>
                   </div>
-                  <div className="visit-notes">{visit.notes || visit.contact}</div>
-                </div>
-              </button>
+                </button>
+                <button className="complete-visit-button" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "calc(100% - 24px)", minHeight: 42, margin: "0 12px 12px", border: 0, borderRadius: 8, background: "#dcfce7", color: "#166534", fontWeight: 850 }} type="button" onClick={() => completeVisit(visit)}>
+                  <CheckCircle2 size={18} />
+                  พบลูกค้าแล้ว
+                </button>
+              </div>
             </div>
           );
         })}
