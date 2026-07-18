@@ -35,11 +35,28 @@ async function supabaseFetch(table, query, options = {}) {
   return payload;
 }
 
+function normalizeDate(value) {
+  const clean = String(value || "").trim();
+  if (!clean) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+
+  const parsed = new Date(clean);
+  if (Number.isNaN(parsed.getTime())) return clean;
+
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return formatter.format(parsed);
+}
+
 function normalizeVisit(input, existingId) {
   const clean = (value) => String(value || "").trim();
   return {
     ...(existingId ? { id: existingId } : {}),
-    date: clean(input.date),
+    date: normalizeDate(input.date),
     start_time: clean(input.start || input.start_time),
     end_time: clean(input.end || input.end_time),
     client: clean(input.client),
