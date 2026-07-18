@@ -143,8 +143,13 @@ export async function PUT(request) {
   // Google Apps Script sends the complete Cloud state back after linking
   // Client Visits records to CRM/Calendar. Accept that bulk format as well
   // as the existing single-visit update used by the web application.
-  if (Array.isArray(body.visits)) {
-    const normalizedVisits = body.visits.map((item) => normalizeVisit(item, item.id));
+  const bulkVisits = Array.isArray(body)
+    ? body
+    : [body.visits, body.data?.visits, body.state?.visits, body.payload?.visits, body.records]
+        .find((value) => Array.isArray(value));
+
+  if (bulkVisits) {
+    const normalizedVisits = bulkVisits.map((item) => normalizeVisit(item, item.id));
     let skipped = 0;
 
     try {
