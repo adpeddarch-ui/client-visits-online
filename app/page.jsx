@@ -170,6 +170,19 @@ export default function Page() {
         เวอร์ชันนี้เปิดผ่านอินเทอร์เน็ตได้แล้ว ข้อมูลซิงก์จาก API กลางของเว็บ และจะรีเฟรชอัตโนมัติทุก 5 วินาที
       </section>
 
+      <section aria-label="สถานะการเชื่อมต่อ" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, marginBottom: 14 }}>
+        <article style={{ padding: 12, border: "1px solid rgba(15, 118, 110, 0.22)", borderRadius: 8, background: "#e8f5f1" }}>
+          <strong style={{ display: "block", color: "#0f766e" }}>Cloud</strong>
+          <span style={{ display: "block", marginTop: 4, fontSize: "0.82rem", fontWeight: 800 }}>{syncLabel === "เชื่อมต่อไม่ได้" ? "เชื่อมต่อไม่ได้" : "เชื่อมต่อแล้ว"}</span>
+          <small style={{ color: "#657184" }}>Supabase API · รีเฟรชทุก 5 วินาที</small>
+        </article>
+        <article style={{ padding: 12, border: "1px solid rgba(37, 99, 235, 0.22)", borderRadius: 8, background: "#e7efff" }}>
+          <strong style={{ display: "block", color: "#2563eb" }}>Google Calendar</strong>
+          <span style={{ display: "block", marginTop: 4, fontSize: "0.82rem", fontWeight: 800 }}>เชื่อมต่อแล้ว</span>
+          <small style={{ color: "#657184" }}>AKS-นัดเข้าพบลูกค้า · Cloud Sync ทุก 5 นาที</small>
+        </article>
+      </section>
+
       <section className="summary-grid" aria-label="สรุป">
         <article className="metric">
           <span>วันนี้</span>
