@@ -70,6 +70,15 @@ function normalizeTime(value) {
 
   const parsed = new Date(clean);
   if (Number.isNaN(parsed.getTime())) return clean;
+
+  // Google Sheets serializes time-only cells with an 1899 base date.
+  // Using IANA historical offsets for that year gives Bangkok +06:42
+  // instead of the current UTC+07:00, so convert those values explicitly.
+  if (parsed.getUTCFullYear() < 1970) {
+    const totalMinutes = (parsed.getUTCHours() * 60 + parsed.getUTCMinutes() + 7 * 60) % (24 * 60);
+    return `${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}:${String(totalMinutes % 60).padStart(2, "0")}`;
+  }
+
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Bangkok",
     hour: "2-digit",
