@@ -113,8 +113,8 @@ function apiVisit(row) {
   return {
     id: row.id,
     date: row.date,
-    start: normalizeTime(row.start_time),
-    end: normalizeTime(row.end_time),
+    start: row.start_time,
+    end: row.end_time,
     client: row.client,
     owner: row.owner_id,
     participants: row.participant_ids || [],
