@@ -52,13 +52,41 @@ function normalizeDate(value) {
   return formatter.format(parsed);
 }
 
+function normalizeTime(value) {
+  const clean = String(value || "").trim();
+  if (!clean) return "";
+
+  const simple = clean.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+  if (simple) {
+    let hours = Number(simple[1]);
+    const minutes = Number(simple[2]);
+    const period = String(simple[3] || "").toUpperCase();
+    if (period === "PM" && hours < 12) hours += 12;
+    if (period === "AM" && hours === 12) hours = 0;
+    if (hours <= 23 && minutes <= 59) {
+      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+    }
+  }
+
+  const parsed = new Date(clean);
+  if (Number.isNaN(parsed.getTime())) return clean;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(parsed);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.hour}:${values.minute}`;
+}
+
 function normalizeVisit(input, existingId) {
   const clean = (value) => String(value || "").trim();
   return {
     ...(existingId ? { id: existingId } : {}),
     date: normalizeDate(input.date),
-    start_time: clean(input.start || input.start_time),
-    end_time: clean(input.end || input.end_time),
+    start_time: normalizeTime(input.start || input.start_time),
+    end_time: normalizeTime(input.end || input.end_time),
     client: clean(input.client),
     owner_id: clean(input.owner || input.owner_id),
     participant_ids: Array.isArray(input.participants || input.participant_ids)
