@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, CheckCircle2, Copy, MapPin, Plus, Search, Trash2, Users, X } from "lucide-react";
+import { CalendarDays, CheckCircle2, Copy, History, MapPin, Plus, Search, Trash2, Users, X, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 const statusClasses = {
@@ -8,10 +8,12 @@ const statusClasses = {
   "เลื่อน": "pending",
   "ยกเลิก": "cancel",
   "เสร็จแล้ว": "done",
+  "ไม่ทำสัญญา": "cancel",
 };
 
 const visitTypes = ["เข้าพบครั้งแรก", "ติดตามผล", "นำเสนอ", "บริการหลังการขาย", "เก็บข้อมูล", "อื่น ๆ"];
-const statuses = ["วางแผน", "รอยืนยัน", "ยืนยันแล้ว", "เสร็จแล้ว", "เลื่อน", "ยกเลิก"];
+const statuses = ["วางแผน", "รอยืนยัน", "ยืนยันแล้ว", "เสร็จแล้ว", "เลื่อน", "ยกเลิก", "ไม่ทำสัญญา"];
+const terminalStatuses = ["เสร็จแล้ว", "ยกเลิก", "ไม่ทำสัญญา"];
 const reminders = [
   [15, "15 นาที"],
   [30, "30 นาที"],
@@ -63,6 +65,8 @@ export default function Page() {
   const [editing, setEditing] = useState(null);
   const [shareUrl, setShareUrl] = useState("");
   const [syncLabel, setSyncLabel] = useState("กำลังโหลด");
+  const [viewMode, setViewMode] = useState("upcoming");
+  const [historyLimit, setHistoryLimit] = useState(20);
 
   const memberName = (id) => members.find((member) => member.id === id)?.name || id || "-";
 
@@ -83,7 +87,8 @@ export default function Page() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const activeVisits = visits.filter((visit) => !["เสร็จแล้ว", "ยกเลิก"].includes(visit.status));
+  const activeVisits = visits.filter((visit) => !terminalStatuses.includes(visit.status) && visit.date >= todayIso());
+  const historyVisits = visits.filter((visit) => terminalStatuses.includes(visit.status) || visit.date < todayIso());
   const summary = useMemo(() => {
     const today = toDate(todayIso());
     const weekEnd = new Date(today);
@@ -100,8 +105,8 @@ export default function Page() {
 
   const visibleVisits = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    return visits
-      .filter((visit) => !["เสร็จแล้ว", "ยกเลิก"].includes(visit.status))
+    const source = viewMode === "upcoming" ? activeVisits : historyVisits;
+    const rows = source
       .filter((visit) => {
         const memberMatch =
           ownerFilter === "ทั้งหมด" || visit.owner === ownerFilter || visit.participants.includes(ownerFilter);
@@ -112,7 +117,9 @@ export default function Page() {
         return memberMatch && statusMatch && (!needle || haystack.includes(needle));
       })
       .sort((a, b) => `${a.date} ${a.start}`.localeCompare(`${b.date} ${b.start}`));
-  }, [visits, ownerFilter, statusFilter, search, members]);
+    if (viewMode === "history") rows.reverse();
+    return viewMode === "history" ? rows.slice(0, historyLimit) : rows;
+  }, [visits, ownerFilter, statusFilter, search, members, viewMode, historyLimit]);
 
   async function saveVisit(visit) {
     const response = await fetch("/api/state", {
@@ -132,6 +139,11 @@ export default function Page() {
   async function completeVisit(visit) {
     if (!window.confirm(`ยืนยันว่าเข้าพบ “${visit.client}” เสร็จแล้วใช่ไหม`)) return;
     await saveVisit({ ...visit, status: "เสร็จแล้ว" });
+  }
+
+  async function noContractVisit(visit) {
+    if (!window.confirm(`ยืนยันว่า “${visit.client}” ไม่ทำสัญญาต่อ รายการจะย้ายไปประวัติใช่ไหม`)) return;
+    await saveVisit({ ...visit, status: "ไม่ทำสัญญา" });
   }
 
   async function deleteVisit(id) {
@@ -214,6 +226,15 @@ export default function Page() {
         </button>
       </section>
 
+      <nav className="view-tabs" aria-label="มุมมองรายการนัด">
+        <button className={viewMode === "upcoming" ? "active" : ""} type="button" onClick={() => { setViewMode("upcoming"); setStatusFilter("ทั้งหมด"); }}>
+          <CalendarDays size={17} /> งานปัจจุบัน <span>{activeVisits.length}</span>
+        </button>
+        <button className={viewMode === "history" ? "active" : ""} type="button" onClick={() => { setViewMode("history"); setStatusFilter("ทั้งหมด"); setHistoryLimit(20); }}>
+          <History size={17} /> ประวัติ <span>{historyVisits.length}</span>
+        </button>
+      </nav>
+
       <nav className="member-tabs" aria-label="ทีม">
         {[{ id: "ทั้งหมด", name: "ทั้งหมด" }, ...members].map((member) => (
           <button
@@ -228,7 +249,7 @@ export default function Page() {
       </nav>
 
       <section className="status-row" aria-label="สถานะ">
-        {["ทั้งหมด", "วางแผน", "รอยืนยัน", "ยืนยันแล้ว", "เลื่อน"].map((status) => (
+        {(viewMode === "upcoming" ? ["ทั้งหมด", "วางแผน", "รอยืนยัน", "ยืนยันแล้ว", "เลื่อน"] : ["ทั้งหมด", "เสร็จแล้ว", "ไม่ทำสัญญา", "ยกเลิก"]).map((status) => (
           <button
             className={`chip ${statusFilter === status ? "active" : ""}`}
             key={status}
@@ -252,7 +273,7 @@ export default function Page() {
                   {new Intl.DateTimeFormat("th-TH", { weekday: "short", day: "numeric", month: "short" }).format(toDate(visit.date))}
                 </h2>
               ) : null}
-              <div className="visit-card" style={{ display: "block", padding: 0, overflow: "hidden" }}>
+              <div className={`visit-card ${viewMode === "history" ? "history" : ""}`} style={{ display: "block", padding: 0, overflow: "hidden" }}>
                 <button className="visit-card-main" style={{ display: "grid", gridTemplateColumns: "60px 1fr", gap: 12, width: "100%", padding: 12, border: 0, background: "transparent", color: "inherit", textAlign: "left" }} type="button" onClick={() => setEditing(visit)}>
                   <div className="date-tile">
                     <strong>{new Intl.DateTimeFormat("th-TH", { day: "numeric" }).format(toDate(visit.date))}</strong>
@@ -287,15 +308,16 @@ export default function Page() {
                     <div className="visit-notes">{visit.notes || visit.contact}</div>
                   </div>
                 </button>
-                <button className="complete-visit-button" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "calc(100% - 24px)", minHeight: 42, margin: "0 12px 12px", border: 0, borderRadius: 8, background: "#dcfce7", color: "#166534", fontWeight: 850 }} type="button" onClick={() => completeVisit(visit)}>
-                  <CheckCircle2 size={18} />
-                  พบลูกค้าแล้ว
-                </button>
+                {viewMode === "upcoming" ? <div className="visit-quick-actions">
+                  <button className="complete-visit-button" type="button" onClick={() => completeVisit(visit)}><CheckCircle2 size={18} />พบลูกค้าแล้ว</button>
+                  <button className="no-contract-button" type="button" onClick={() => noContractVisit(visit)}><XCircle size={18} />ไม่ทำสัญญา</button>
+                </div> : null}
               </div>
             </div>
           );
         })}
       </section>
+      {viewMode === "history" && visibleVisits.length < historyVisits.length ? <button className="load-more" type="button" onClick={() => setHistoryLimit((value) => value + 20)}>แสดงประวัติเพิ่มอีก 20 รายการ</button> : null}
 
       {editing ? (
         <VisitSheet
