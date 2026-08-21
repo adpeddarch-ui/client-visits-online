@@ -107,6 +107,10 @@ function normalizeVisit(input, existingId) {
     reminder: Number(input.reminder || 60),
     contact: clean(input.contact),
     notes: clean(input.notes),
+    category: clean(input.category) === "project" ? "project" : "sales",
+    calendar_emails: Array.isArray(input.calendarEmails || input.calendar_emails)
+      ? [...new Set((input.calendarEmails || input.calendar_emails).map(clean).filter(Boolean))]
+      : [],
     updated_at: new Date().toISOString(),
   };
 }
@@ -133,8 +137,26 @@ function apiVisit(row) {
     reminder: row.reminder,
     contact: row.contact || "",
     notes: row.notes || "",
+    category: row.category || "sales",
+    calendarEmails: row.calendar_emails || [],
     updatedAt: row.updated_at,
   };
+}
+
+async function notifyIntegration(kind, visit, action) {
+  const url = kind === "crm" ? process.env.CRM_SYNC_WEBHOOK_URL : process.env.GOOGLE_CALENDAR_WEBHOOK_URL;
+  if (!url) return;
+  await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ source: "client-visits-online", action, visit: apiVisit(visit) }),
+    cache: "no-store",
+  }).catch(() => null);
+}
+
+async function notifyVisit(visit, action) {
+  await notifyIntegration("calendar", visit, action);
+  if ((visit.category || "sales") === "sales") await notifyIntegration("crm", visit, action);
 }
 
 function apiMember(row) {
@@ -146,15 +168,20 @@ function apiMember(row) {
   };
 }
 
-export async function GET() {
+export async function GET(request) {
   if (missingConfig()) {
     return NextResponse.json({ error: "ยังไม่ได้ตั้งค่า Supabase URL/key" }, { status: 500 });
   }
 
   try {
+    // The legacy CRM calls this endpoint without a category. Keep that path
+    // sales-only so project appointments can never leak into Sales CRM.
+    const requestedCategory = new URL(request.url).searchParams.get("category");
+    const category = requestedCategory === "project" ? "project" : "sales";
+    const visitQuery = `?select=*&category=eq.${category}&order=date.asc,start_time.asc`;
     const [members, visits] = await Promise.all([
       supabaseFetch("team_members", "?select=*&order=id.asc"),
-      supabaseFetch("visits", "?select=*&order=date.asc,start_time.asc"),
+      supabaseFetch("visits", visitQuery),
     ]);
 
     return NextResponse.json({
@@ -190,6 +217,7 @@ export async function POST(request) {
       headers: { prefer: "return=representation" },
       body: JSON.stringify(visit),
     });
+    await notifyVisit(rows[0], "upsert");
     return NextResponse.json(apiVisit(rows[0]), { status: 201 });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -288,6 +316,7 @@ export async function PUT(request) {
       headers: { prefer: "return=representation" },
       body: JSON.stringify(visit),
     });
+    await notifyVisit(rows[0], "upsert");
     return NextResponse.json(apiVisit(rows[0]));
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -303,7 +332,9 @@ export async function DELETE(request) {
   if (!id) return NextResponse.json({ error: "ไม่พบนัดนี้" }, { status: 404 });
 
   try {
+    const rows = await supabaseFetch("visits", `?id=eq.${encodeURIComponent(id)}&select=*`);
     await supabaseFetch("visits", `?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (rows[0]) await notifyVisit(rows[0], "delete");
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
