@@ -110,17 +110,6 @@ export default function Page() {
     return () => window.clearInterval(timer);
   }, []);
 
-  function changeCategory(nextCategory) {
-    setCategory(nextCategory);
-    setOwnerFilter("ทั้งหมด");
-    setStatusFilter("ทั้งหมด");
-    setViewMode("upcoming");
-    const url = new URL(window.location.href);
-    url.searchParams.set("category", nextCategory);
-    window.history.pushState({}, "", url);
-    setShareUrl(url.toString());
-  }
-
   const categoryVisits = visits.filter((visit) => (visit.category || "sales") === category);
   const activeVisits = categoryVisits.filter((visit) => !terminalStatuses.includes(visit.status) && visit.date >= todayIso());
   const historyVisits = categoryVisits.filter((visit) => terminalStatuses.includes(visit.status) || visit.date < todayIso());
@@ -224,12 +213,12 @@ export default function Page() {
       </section>
 
       <nav className="category-tabs" aria-label="หมวดงาน">
-        <button className={category === "sales" ? "active sales" : ""} type="button" onClick={() => changeCategory("sales")}>
+        <a className={category === "sales" ? "active sales" : ""} href="/?category=sales">
           <BriefcaseBusiness size={20} /><span><strong>ฝ่ายขาย</strong><small>ซิงก์เข้า CRM ฝ่ายขาย</small></span>
-        </button>
-        <button className={category === "project" ? "active project" : ""} type="button" onClick={() => changeCategory("project")}>
+        </a>
+        <a className={category === "project" ? "active project" : ""} href="/?category=project">
           <HardHat size={20} /><span><strong>งานโครงการ</strong><small>แยกจาก CRM ฝ่ายขาย</small></span>
-        </button>
+        </a>
       </nav>
 
       <section aria-label="สถานะการเชื่อมต่อ" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, marginBottom: 14 }}>
@@ -527,3 +516,4 @@ function VisitSheet({ members, value, onClose, onDelete, onSave }) {
     </>
   );
 }
+
