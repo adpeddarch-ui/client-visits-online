@@ -312,6 +312,14 @@ h1 {
   margin-top: 2px;
 }
 
+.category-tabs { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 0 14px; }
+.category-tabs button { display:flex; align-items:center; gap:10px; min-height:64px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--muted); text-align:left; }
+.category-tabs button span { display:grid; gap:2px; }
+.category-tabs button strong { color:var(--navy); font-size:.92rem; }
+.category-tabs button small { font-size:.69rem; }
+.category-tabs button.active.sales { border-color:var(--teal); background:var(--mint); color:var(--teal); }
+.category-tabs button.active.project { border-color:var(--blue); background:var(--blue-soft); color:var(--blue); }
+
 .view-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -377,6 +385,9 @@ h1 {
   gap: 8px;
   margin: 0 12px 12px;
 }
+.visit-quick-actions.three { grid-template-columns:1.2fr 1fr 1fr; }
+.calendar-button { display:flex; align-items:center; justify-content:center; gap:6px; min-height:42px; border-radius:8px; background:var(--blue-soft); color:var(--blue); font-size:.78rem; font-weight:850; text-decoration:none; }
+.calendar-email { display:flex; align-items:center; gap:5px; margin-top:7px; color:var(--blue); font-size:.72rem; overflow-wrap:anywhere; }
 
 .visit-quick-actions button {
   display: flex;
@@ -693,4 +704,8 @@ textarea:focus {
   .participant-grid {
     grid-template-columns: 1fr;
   }
+
+  .category-tabs { grid-template-columns:1fr; }
+  .visit-quick-actions.three { grid-template-columns:1fr 1fr; }
+  .calendar-button { grid-column:1 / -1; }
 }
