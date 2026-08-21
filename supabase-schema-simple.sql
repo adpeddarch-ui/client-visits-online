@@ -50,10 +50,16 @@ create table if not exists public.visits (
   reminder integer not null default 60,
   contact text default '',
   notes text default '',
+  category text not null default 'sales' check (category in ('sales', 'project')),
+  calendar_emails text[] not null default '{}',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (client, date, start_time)
 );
+
+alter table public.visits add column if not exists category text not null default 'sales';
+alter table public.visits add column if not exists calendar_emails text[] not null default '{}';
+create index if not exists idx_visits_category_date on public.visits(category, date);
 
 create table if not exists public.followups (
   id uuid primary key default gen_random_uuid(),
