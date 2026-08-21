@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, CheckCircle2, Copy, History, MapPin, Plus, Search, Trash2, Users, X, XCircle } from "lucide-react";
+import { BriefcaseBusiness, CalendarDays, CheckCircle2, Copy, ExternalLink, HardHat, History, Mail, MapPin, Plus, Search, Trash2, Users, X, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 const statusClasses = {
@@ -38,7 +38,7 @@ function toDate(value) {
   return new Date(year, month - 1, day);
 }
 
-function blankVisit(members) {
+function blankVisit(members, category) {
   return {
     id: "",
     client: "",
@@ -53,7 +53,23 @@ function blankVisit(members) {
     reminder: 60,
     contact: "",
     notes: "",
+    category,
+    calendarEmails: [],
   };
+}
+
+function googleCalendarUrl(visit) {
+  const compact = (value) => value.replace(/[-:]/g, "");
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: `${visit.category === "project" ? "[งานโครงการ]" : "[ฝ่ายขาย]"} ${visit.client}`,
+    dates: `${compact(visit.date)}T${compact(visit.start).slice(0, 4)}00/${compact(visit.date)}T${compact(visit.end).slice(0, 4)}00`,
+    ctz: "Asia/Bangkok",
+    details: [visit.contact, visit.notes].filter(Boolean).join("\n"),
+    location: visit.location || "",
+  });
+  (visit.calendarEmails || []).forEach((email) => params.append("add", email));
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
 export default function Page() {
@@ -67,18 +83,25 @@ export default function Page() {
   const [syncLabel, setSyncLabel] = useState("กำลังโหลด");
   const [viewMode, setViewMode] = useState("upcoming");
   const [historyLimit, setHistoryLimit] = useState(20);
+  const [category, setCategory] = useState("sales");
 
   const memberName = (id) => members.find((member) => member.id === id)?.name || id || "-";
 
   async function loadState() {
-    const response = await fetch("/api/state", { cache: "no-store" });
-    const payload = await response.json();
-    setMembers(payload.members || []);
-    setVisits(payload.visits || []);
+    const [salesResponse, projectResponse] = await Promise.all([
+      fetch("/api/state?category=sales", { cache: "no-store" }),
+      fetch("/api/state?category=project", { cache: "no-store" }),
+    ]);
+    if (!salesResponse.ok || !projectResponse.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
+    const [sales, project] = await Promise.all([salesResponse.json(), projectResponse.json()]);
+    setMembers(sales.members || project.members || []);
+    setVisits([...(sales.visits || []), ...(project.visits || [])]);
     setSyncLabel("ออนไลน์");
   }
 
   useEffect(() => {
+    const selected = new URLSearchParams(window.location.search).get("category");
+    setCategory(selected === "project" ? "project" : "sales");
     loadState().catch(() => setSyncLabel("เชื่อมต่อไม่ได้"));
     const timer = window.setInterval(() => {
       loadState().catch(() => setSyncLabel("เชื่อมต่อไม่ได้"));
@@ -87,8 +110,20 @@ export default function Page() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const activeVisits = visits.filter((visit) => !terminalStatuses.includes(visit.status) && visit.date >= todayIso());
-  const historyVisits = visits.filter((visit) => terminalStatuses.includes(visit.status) || visit.date < todayIso());
+  function changeCategory(nextCategory) {
+    setCategory(nextCategory);
+    setOwnerFilter("ทั้งหมด");
+    setStatusFilter("ทั้งหมด");
+    setViewMode("upcoming");
+    const url = new URL(window.location.href);
+    url.searchParams.set("category", nextCategory);
+    window.history.pushState({}, "", url);
+    setShareUrl(url.toString());
+  }
+
+  const categoryVisits = visits.filter((visit) => (visit.category || "sales") === category);
+  const activeVisits = categoryVisits.filter((visit) => !terminalStatuses.includes(visit.status) && visit.date >= todayIso());
+  const historyVisits = categoryVisits.filter((visit) => terminalStatuses.includes(visit.status) || visit.date < todayIso());
   const summary = useMemo(() => {
     const today = toDate(todayIso());
     const weekEnd = new Date(today);
@@ -99,9 +134,9 @@ export default function Page() {
         const date = toDate(visit.date);
         return date >= today && date <= weekEnd;
       }).length,
-      pending: visits.filter((visit) => visit.status === "รอยืนยัน").length,
+      pending: categoryVisits.filter((visit) => visit.status === "รอยืนยัน").length,
     };
-  }, [visits]);
+  }, [visits, category]);
 
   const visibleVisits = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -188,6 +223,15 @@ export default function Page() {
         เวอร์ชันนี้เปิดผ่านอินเทอร์เน็ตได้แล้ว ข้อมูลซิงก์จาก API กลางของเว็บ และจะรีเฟรชอัตโนมัติทุก 5 วินาที
       </section>
 
+      <nav className="category-tabs" aria-label="หมวดงาน">
+        <button className={category === "sales" ? "active sales" : ""} type="button" onClick={() => changeCategory("sales")}>
+          <BriefcaseBusiness size={20} /><span><strong>ฝ่ายขาย</strong><small>ซิงก์เข้า CRM ฝ่ายขาย</small></span>
+        </button>
+        <button className={category === "project" ? "active project" : ""} type="button" onClick={() => changeCategory("project")}>
+          <HardHat size={20} /><span><strong>งานโครงการ</strong><small>แยกจาก CRM ฝ่ายขาย</small></span>
+        </button>
+      </nav>
+
       <section aria-label="สถานะการเชื่อมต่อ" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, marginBottom: 14 }}>
         <article style={{ padding: 12, border: "1px solid rgba(15, 118, 110, 0.22)", borderRadius: 8, background: "#e8f5f1" }}>
           <strong style={{ display: "block", color: "#0f766e" }}>Cloud</strong>
@@ -221,7 +265,7 @@ export default function Page() {
           <Search size={19} />
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหาลูกค้า สถานที่ ผู้ติดต่อ" />
         </label>
-        <button className="icon-button" type="button" onClick={() => setEditing(blankVisit(members))} aria-label="เพิ่มนัด">
+        <button className="icon-button" type="button" onClick={() => setEditing(blankVisit(members, category))} aria-label="เพิ่มนัด">
           <Plus size={22} />
         </button>
       </section>
@@ -306,9 +350,11 @@ export default function Page() {
                       </span>
                     </div>
                     <div className="visit-notes">{visit.notes || visit.contact}</div>
+                    {(visit.calendarEmails || []).length ? <div className="calendar-email"><Mail size={13} />{visit.calendarEmails.join(", ")}</div> : null}
                   </div>
                 </button>
-                {viewMode === "upcoming" ? <div className="visit-quick-actions">
+                {viewMode === "upcoming" ? <div className="visit-quick-actions three">
+                  <a className="calendar-button" href={googleCalendarUrl(visit)} target="_blank" rel="noreferrer"><ExternalLink size={17} />Google Calendar</a>
                   <button className="complete-visit-button" type="button" onClick={() => completeVisit(visit)}><CheckCircle2 size={18} />พบลูกค้าแล้ว</button>
                   <button className="no-contract-button" type="button" onClick={() => noContractVisit(visit)}><XCircle size={18} />ไม่ทำสัญญา</button>
                 </div> : null}
@@ -393,6 +439,13 @@ function VisitSheet({ members, value, onClose, onDelete, onSave }) {
               </select>
             </label>
             <label>
+              หมวดงาน
+              <select value={visit.category || "sales"} onChange={(event) => update("category", event.target.value)}>
+                <option value="sales">ฝ่ายขาย · ซิงก์ CRM</option>
+                <option value="project">งานโครงการ · ไม่ซิงก์ CRM</option>
+              </select>
+            </label>
+            <label>
               ประเภท
               <select value={visit.type} onChange={(event) => update("type", event.target.value)}>
                 {visitTypes.map((type) => (
@@ -425,6 +478,16 @@ function VisitSheet({ members, value, onClose, onDelete, onSave }) {
             <label>
               ผู้ติดต่อ
               <input value={visit.contact} onChange={(event) => update("contact", event.target.value)} />
+            </label>
+            <label className="full">
+              อีเมล Google Calendar ของ Owner / ทีมงาน
+              <input
+                type="text"
+                value={(visit.calendarEmails || []).join(", ")}
+                onChange={(event) => update("calendarEmails", event.target.value.split(/[,\s]+/).map((item) => item.trim()).filter(Boolean))}
+                placeholder="owner@gmail.com, sales@company.com"
+              />
+              <small>เมื่อเปิดปุ่ม Google Calendar ระบบจะใส่ทุกอีเมลเป็นผู้ร่วมงานให้อัตโนมัติ</small>
             </label>
             <label className="full">
               ผู้ร่วมทีม
