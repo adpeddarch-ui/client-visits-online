@@ -8,6 +8,14 @@ const headers = {
   authorization: `Bearer ${supabaseKey || ""}`,
   "content-type": "application/json",
 };
+const salesTeam = [
+  { id: "m1", name: "แอม", role: "sales", email: "" },
+  { id: "m2", name: "มายด์", role: "sales", email: "" },
+  { id: "m3", name: "ส้มโอ้น", role: "sales", email: "" },
+  { id: "m4", name: "ต้อม", role: "sales", email: "" },
+  { id: "m5", name: "ปุ๊", role: "sales", email: "" },
+  { id: "m6", name: "เอส", role: "sales", email: "" },
+];
 
 function missingConfig() {
   return !supabaseUrl || !supabaseKey;
@@ -118,6 +126,7 @@ function normalizeVisit(input, existingId) {
 function validationError(visit) {
   const missing = ["date", "start_time", "end_time", "client", "owner_id"].filter((field) => !visit[field]);
   if (missing.length) return `ข้อมูลยังไม่ครบ: ${missing.join(", ")}`;
+  if (!salesTeam.some((member) => member.id === visit.owner_id)) return "กรุณาเลือกผู้รับผิดชอบจากทีมขาย";
   if (visit.start_time >= visit.end_time) return "เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่ม";
   return "";
 }
@@ -179,13 +188,10 @@ export async function GET(request) {
     const requestedCategory = new URL(request.url).searchParams.get("category");
     const category = requestedCategory === "project" ? "project" : "sales";
     const visitQuery = `?select=*&category=eq.${category}&order=date.asc,start_time.asc`;
-    const [members, visits] = await Promise.all([
-      supabaseFetch("team_members", "?select=*&order=id.asc"),
-      supabaseFetch("visits", visitQuery),
-    ]);
+    const visits = await supabaseFetch("visits", visitQuery);
 
     return NextResponse.json({
-      members: members.map(apiMember),
+      members: salesTeam,
       visits: visits.map(apiVisit),
     });
   } catch (error) {
@@ -265,15 +271,12 @@ export async function PUT(request) {
         }
       }
 
-      const [members, visits] = await Promise.all([
-        supabaseFetch("team_members", "?select=*&order=id.asc"),
-        supabaseFetch("visits", "?select=*&order=date.asc,start_time.asc"),
-      ]);
+      const visits = await supabaseFetch("visits", "?select=*&order=date.asc,start_time.asc");
 
       return NextResponse.json({
         ok: true,
         skipped,
-        members: members.map(apiMember),
+        members: salesTeam,
         visits: visits.map(apiVisit),
       });
     } catch (err) {
