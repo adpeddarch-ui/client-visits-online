@@ -21,12 +21,6 @@ const reminders = [
   [120, "2 ชั่วโมง"],
   [1440, "1 วัน"],
 ];
-const salesTeam = [
-  { id: "m1", name: "แอม" }, { id: "m2", name: "มายด์" },
-  { id: "m3", name: "ส้มโอ้น" }, { id: "m4", name: "ต้อม" },
-  { id: "m5", name: "ปุ๊" }, { id: "m6", name: "เอส" },
-];
-
 function todayIso() {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Bangkok",
@@ -78,7 +72,7 @@ function googleCalendarUrl(visit) {
 }
 
 export default function Page() {
-  const [members] = useState(salesTeam);
+  const [members, setMembers] = useState([]);
   const [visits, setVisits] = useState([]);
   const [ownerFilter, setOwnerFilter] = useState("ทั้งหมด");
   const [statusFilter, setStatusFilter] = useState("ทั้งหมด");
@@ -99,6 +93,7 @@ export default function Page() {
     ]);
     if (!salesResponse.ok || !projectResponse.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
     const [sales, project] = await Promise.all([salesResponse.json(), projectResponse.json()]);
+    setMembers(sales.members || project.members || []);
     setVisits([...(sales.visits || []), ...(project.visits || [])]);
     setSyncLabel("ออนไลน์");
   }
